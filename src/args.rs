@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 
 #[derive(clap::Parser)]
 pub struct Args {
@@ -23,18 +23,4 @@ fn parse_pair(input: &str) -> anyhow::Result<(String, String)> {
         .split_once("=")
         .map(|(a, b)| (a.into(), b.into()))
         .ok_or(anyhow!("error parsing kv pairs"))
-}
-
-fn parse_inputs(inputs: &str) -> anyhow::Result<Vec<(String, String)>> {
-    let mut result = Vec::new();
-
-    for pair in inputs.split(",") {
-        let Some((key, value)) = pair.split_once("=") else {
-            bail!("error parsing key-value pairs");
-        };
-
-        result.push((key.into(), value.into()));
-    }
-
-    Ok(result)
 }

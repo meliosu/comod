@@ -1,6 +1,4 @@
-use std::{collections::HashMap, fmt::Write};
-
-use anyhow::bail;
+use std::fmt::Write;
 
 use crate::types::*;
 
