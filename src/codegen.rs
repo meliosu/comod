@@ -27,7 +27,14 @@ impl Generator {
             self.gen_operation(&mut o, name, operation)?;
         }
 
+        self.gen_main(&mut o)?;
+
         Ok(o)
+    }
+
+    fn gen_main(&self, o: &mut Code) -> anyhow::Result<()> {
+        write!(o, "int main(){{}}")?;
+        Ok(())
     }
 
     fn gen_ucodes(&self, o: &mut Code) -> anyhow::Result<()> {
@@ -46,7 +53,7 @@ impl Generator {
         for (name, variable) in &self.model.variables {
             write!(
                 o,
-                "struct {{int computed; {} value;}} {};",
+                "struct {{bool computed; {} value;}} {};",
                 variable.ty, name
             )?;
         }
@@ -119,7 +126,7 @@ impl Generator {
         write!(o, ");")?;
 
         for output in &operation.outputs {
-            write!(o, "variables.{output}.value = ctx.output;")?;
+            write!(o, "variables.{output}.value = ctx.{output};")?;
             write!(o, "variables.{output}.computed = 1;")?;
         }
 
@@ -147,6 +154,7 @@ impl Generator {
             write!(o, "}}")?;
         }
 
+        write!(o, "operations.{name}.status = STOPPED;")?;
         write!(o, "}}")?;
         Ok(())
     }

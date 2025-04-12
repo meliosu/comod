@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdint.h>
 
 typedef int8_t i8;
@@ -13,3 +14,7 @@ typedef double f64;
 typedef void *ptr;
 
 void enqueue(void (*task)(void));
+
+#define WAITING 0
+#define RUNNING 1
+#define STOPPED 2
