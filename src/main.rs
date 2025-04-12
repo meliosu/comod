@@ -21,7 +21,7 @@ fn run() -> anyhow::Result<()> {
     let ucodes =
         std::fs::read_to_string(&args.ucodes).map_err(|e| anyhow!("reading ucodes: {e}"))?;
 
-    let generator = Generator::new(model, ucodes);
+    let generator = Generator::new(model, ucodes, args.inputs, args.outputs);
 
     let code = generator
         .generate()
@@ -34,7 +34,11 @@ fn run() -> anyhow::Result<()> {
 
     let name = PathBuf::from_str(&args.model)?;
 
-    let Some(name) = name.file_name().and_then(|s| s.to_str()) else {
+    let Some(name) = name
+        .file_name()
+        .and_then(|s| s.to_str())
+        .and_then(|s| s.strip_suffix(".json"))
+    else {
         bail!("model needs to have .json extension");
     };
 

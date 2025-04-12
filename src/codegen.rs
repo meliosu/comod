@@ -1,17 +1,33 @@
-use std::fmt::Write;
+use std::{collections::HashMap, fmt::Write};
+
+use anyhow::bail;
 
 use crate::types::*;
 
 pub type Code = String;
 
+const NUM_WORKERS: usize = 6;
+
 pub struct Generator {
     model: Model,
     ucodes: Code,
+    inputs: Vec<(String, String)>,
+    outputs: Vec<String>,
 }
 
 impl Generator {
-    pub fn new(model: Model, ucodes: Code) -> Self {
-        Self { model, ucodes }
+    pub fn new(
+        model: Model,
+        ucodes: Code,
+        inputs: Vec<(String, String)>,
+        outputs: Vec<String>,
+    ) -> Self {
+        Self {
+            model,
+            ucodes,
+            inputs,
+            outputs,
+        }
     }
 
     pub fn generate(self) -> anyhow::Result<Code> {
@@ -33,7 +49,58 @@ impl Generator {
     }
 
     fn gen_main(&self, o: &mut Code) -> anyhow::Result<()> {
-        write!(o, "int main(){{}}")?;
+        write!(o, "int main(){{")?;
+
+        write!(o, "tp_init({NUM_WORKERS});")?;
+
+        for (key, value) in &self.inputs {
+            write!(o, "variables.{key}.value = {value};")?;
+            write!(o, "variables.{key}.computed = true;")?;
+        }
+
+        for (name, _) in self.model.operations.iter().filter(|(_, op)| {
+            op.inputs
+                .iter()
+                .all(|i| self.inputs.iter().any(|(key, _)| key == i))
+        }) {
+            write!(o, "operations.{name}.status = RUNNING;")?;
+            write!(o, "tp_enqueue(op_{name});")?;
+        }
+
+        write!(o, "tp_wait();")?;
+
+        for output in &self.outputs {
+            let Some(ty) = self
+                .model
+                .variables
+                .iter()
+                .find_map(|(name, var)| (*name == *output).then_some(&var.ty))
+            else {
+                todo!();
+            };
+
+            let fmt = match ty {
+                Type::I8 => "d",
+                Type::U8 => "d",
+                Type::I16 => "d",
+                Type::U16 => "d",
+                Type::I32 => "d",
+                Type::U32 => "d",
+                Type::I64 => "ld",
+                Type::U64 => "ld",
+                Type::F32 => "f",
+                Type::F64 => "lf",
+                Type::Ptr => "p",
+            };
+
+            write!(o, r#"printf("{output}: ");"#)?;
+            write!(o, r#"if (variables.{output}.computed) {{"#)?;
+            write!(o, r#"printf("%{fmt}\n", variables.{output}.value);}}"#)?;
+            write!(o, r#"else {{"#)?;
+            write!(o, r#"printf("not computed\n");}}"#)?;
+        }
+
+        write!(o, "}}")?;
         Ok(())
     }
 
@@ -58,7 +125,7 @@ impl Generator {
             )?;
         }
 
-        write!(o, "}} variables;")?;
+        write!(o, "}} variables = {{0}};")?;
         Ok(())
     }
 
@@ -69,7 +136,7 @@ impl Generator {
             write!(o, "struct {{int status;}} {};", name)?;
         }
 
-        write!(o, "}} operations;")?;
+        write!(o, "}} operations = {{0}};")?;
         Ok(())
     }
 
@@ -127,7 +194,7 @@ impl Generator {
 
         for output in &operation.outputs {
             write!(o, "variables.{output}.value = ctx.{output};")?;
-            write!(o, "variables.{output}.computed = 1;")?;
+            write!(o, "variables.{output}.computed = true;")?;
         }
 
         for (name, child_operation) in self
@@ -150,7 +217,7 @@ impl Generator {
 
             write!(o, ") {{")?;
             write!(o, "operations.{name}.status = RUNNING;")?;
-            write!(o, "enqueue(op_{name});")?;
+            write!(o, "tp_enqueue(op_{name});")?;
             write!(o, "}}")?;
         }
 
